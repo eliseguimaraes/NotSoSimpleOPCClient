@@ -126,7 +126,7 @@ void main(void)
 		
 	ticks1 = GetTickCount();
 	printf("Waiting for IOPCDataCallback notifications during 10 seconds...\n");
-	//do {
+	do {
 		bRet = GetMessage( &msg, NULL, 0, 0 );
 		if (!bRet){
 			printf ("Failed to get windows message! Error code = %d\n", GetLastError());
@@ -135,7 +135,7 @@ void main(void)
 		TranslateMessage(&msg); // This call is not really needed ...
 		DispatchMessage(&msg);  // ... but this one is!
         ticks2 = GetTickCount();
-	//} while ((ticks2 - ticks1) < 10000);
+	} while ((ticks2 - ticks1) < 10000);
 
 	// Cancel the callback and release its reference
 	printf("Cancelling the IOPCDataCallback notifications...\n");
