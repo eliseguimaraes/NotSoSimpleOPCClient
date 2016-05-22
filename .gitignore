@@ -52,3 +52,4 @@ SimpleOPCClient.sln.old
 _UpgradeReport_Files/
 *.sdf
 *.opendb
+/enc_temp_folder
