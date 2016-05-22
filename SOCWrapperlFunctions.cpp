@@ -136,6 +136,19 @@ bool VarToStr (VARIANT pvar, char *buffer)
 			sprintf(buffer, "%lu",   pvar.dblVal);	break;
 		case VT_BSTR:
 			sprintf(buffer, "%s",    pvar.bstrVal);	break;
+		case VT_DATE:
+			SYSTEMTIME s;
+			VariantTimeToSystemTime(pvar.date, &s); 
+			sprintf(buffer,
+				"%d-%02d-%02d %02d:%02d:%02d.%03d",
+				s.wYear,
+				s.wMonth,
+				s.wDay,
+				s.wHour,
+				s.wMinute,
+				s.wSecond,
+				s.wMilliseconds);
+			break;
 		default:
 			sprintf(buffer, "%s", NULL);
 			vReturn = false;

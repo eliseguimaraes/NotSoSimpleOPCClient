@@ -104,7 +104,7 @@ void main(void)
 	MSG msg;
 	DWORD ticks1, ticks2;
     
-	// Establish a callback asynchronous read by means of the IOPCDaraCallback
+	// Establish a callback asynchronous read by means of the IOPCDataCallback
 	// (OPC DA 2.0) method. We first instantiate a new SOCDataCallback object and
 	// adjusts its reference count, and then call a wrapper function to
 	// setup the callback.
