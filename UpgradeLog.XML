@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="SimpleOPCClient">
+</Property><Property Name="Solution File" Value="E:\Elise\Documents\Faculdade\SDA\SimpleOPCClient\SimpleOPCClient.sln">
+</Property><Property Name="User Options File" Value="E:\Elise\Documents\Faculdade\SDA\SimpleOPCClient\SimpleOPCClient.suo">
+</Property><Property Name="Date" Value="21 May 2016">
+</Property><Property Name="Time" Value="10:50">
+</Property></Properties><Event ErrorLevel="0" Project="" Source="SimpleOPCClient.sln" Description="File successfully backed up as E:\Elise\Documents\Faculdade\SDA\SimpleOPCClient\SimpleOPCClient.sln.old">
+</Event><Event ErrorLevel="0" Project="" Source="SimpleOPCClient.suo" Description="File successfully backed up as E:\Elise\Documents\Faculdade\SDA\SimpleOPCClient\SimpleOPCClient.suo.old">
+</Event><Event ErrorLevel="0" Project="SimpleOPCClient" Source="SimpleOPCClient.vcproj" Description="Converting project file 'E:\Elise\Documents\Faculdade\SDA\SimpleOPCClient\SimpleOPCClient.vcproj'.">
+</Event><Event ErrorLevel="1" Project="SimpleOPCClient" Source="SimpleOPCClient.vcproj" Description="VCWebServiceProxyGeneratorTool is no longer supported. The tool has been removed from your project settings.">
+</Event><Event ErrorLevel="0" Project="SimpleOPCClient" Source="SimpleOPCClient.vcproj" Description="Done converting to new project file 'E:\Elise\Documents\Faculdade\SDA\SimpleOPCClient\SimpleOPCClient.vcxproj'.">
+</Event><Event ErrorLevel="3" Project="SimpleOPCClient" Source="SimpleOPCClient.vcproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="SimpleOPCClient.sln" Description="Solution converted successfully">
+</Event><Event ErrorLevel="3" Project="" Source="SimpleOPCClient.sln" Description="Converted">
+</Event></UpgradeLog>
