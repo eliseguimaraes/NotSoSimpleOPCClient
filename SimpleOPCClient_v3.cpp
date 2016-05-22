@@ -36,8 +36,6 @@
 using namespace std;
 
 #define OPC_SERVER_NAME L"Matrikon.OPC.Simulation.1"
-#define VT VT_R4
-
 
 //#define REMOTE_SERVER_NAME L"your_path"
 
@@ -47,18 +45,24 @@ using namespace std;
 // them. The one below refers to the OPC DA 1.0 IDataObject interface.
 UINT OPC_DATA_TIME = RegisterClipboardFormat (_T("OPCSTMFORMATDATATIME"));
 
-wchar_t *ITEM_ID[6]={L"Bucket Brigade.Int2", L"Bucket Brigade.Int4", L"Bucket Brigade.String", L"Random.Int2",L"Random.Real4",L"Random.Time"};
-
+wchar_t *ITEM_READ[3]= {L"Random.Int2",L"Random.Real4",L"Random.Time"};
+wchar_t *ITEM_WRITE[3] = {L"Bucket Brigade.Int2", L"Bucket Brigade.Int4", L"Bucket Brigade.String"};
 //////////////////////////////////////////////////////////////////////
 // Read the value of an item on an OPC server. 
 //
 void main(void)
 {
 	IOPCServer* pIOPCServer = NULL;   //pointer to IOPServer interface
-	IOPCItemMgt* pIOPCItemMgt = NULL; //pointer to IOPCItemMgt interface
+	IOPCItemMgt* pIOPCItemRead = NULL; //pointer to IOPCItemMgt interface
+	IOPCItemMgt* pIOPCItemWrite = NULL; //pointer to IOPCItemMgt interface for the writing group
 
-	OPCHANDLE hServerGroup; // server handle to the group
-	OPCHANDLE hServerItem[6];  // server handle to the item
+	OPCHANDLE hServerRead; // server handle to the reading group
+	OPCHANDLE hServerWrite; // server handle to the writing group
+	OPCHANDLE hServerReadArray[3];  // server handle to the reading item array
+	OPCHANDLE hServerWriteArray[3];  // server handle to the writing item array
+
+	LPCWSTR readingGroupName = L"Group1";
+	LPCWSTR writingGroupName = L"Group2";
 
 	int i;
 	char buf[100];
@@ -71,20 +75,30 @@ void main(void)
 	printf("Intantiating the MATRIKON OPC Server for Simulation...\n");
 	pIOPCServer = InstantiateServer(OPC_SERVER_NAME);
 	
-	// Add the OPC group the OPC server and get an handle to the IOPCItemMgt
-	//interface:
-	printf("Adding a group in the INACTIVE state for the moment...\n");
-	AddTheGroup(pIOPCServer, pIOPCItemMgt, hServerGroup);
+	// Add the OPC groups for reading and writing the OPC server and get an handle to the IOPCItemMgt
+	//interfaces:
+	printf("Adding a reading group in the INACTIVE state for the moment...\n");
+	AddTheGroup(pIOPCServer, pIOPCItemRead, hServerRead, readingGroupName);
 
-	// Add the OPC item. First we have to convert from wchar_t* to char*
+	printf("Adding a writing group in the INACTIVE state...\n");
+	AddTheGroup(pIOPCServer, pIOPCItemWrite, hServerWrite, writingGroupName);
+
+
+	// Add the OPC items. First we have to convert from wchar_t* to char*
 	// in order to print the item name in the console.
-    size_t m[6];
-	for (i=0; i<6; i++) {
-		wcstombs_s(m+i, buf, 100, ITEM_ID[i], _TRUNCATE);
-		printf("Adding the item %s to the group...\n", buf);
+	size_t m;
+	for (i=0; i<3; i++) {
+		wcstombs_s(&m, buf, 100, ITEM_READ[i], _TRUNCATE);
+		printf("Adding the item %s to the reading group...\n", buf);
 	}
 
-    AddTheItem(pIOPCItemMgt, hServerItem);
+    AddReadingItems(pIOPCItemRead, hServerReadArray);
+
+	for (i = 0; i<3; i++) {
+		wcstombs_s(&m, buf, 100, ITEM_WRITE[i], _TRUNCATE);
+		printf("Adding the item %s to the writing group...\n", buf);
+	}
+	AddWritingItems(pIOPCItemWrite, hServerWriteArray);
 
 	int bRet;
 	MSG msg;
@@ -100,15 +114,15 @@ void main(void)
 	pSOCDataCallback->AddRef();
 
 	printf("Setting up the IConnectionPoint callback connection...\n");
-	SetDataCallback(pIOPCItemMgt, pSOCDataCallback, pIConnectionPoint, &dwCookie);
+	SetDataCallback(pIOPCItemRead, pSOCDataCallback, pIConnectionPoint, &dwCookie);
 
-	// Change the group to the ACTIVE state so that we can receive the
+	// Change the reading group to the ACTIVE state so that we can receive the
 	// server´s callback notification
-	printf("Changing the group state to ACTIVE...\n");
-    SetGroupActive(pIOPCItemMgt); 
+	printf("Changing the reading group state to ACTIVE...\n");
+    SetGroupActive(pIOPCItemRead);
 
-	// Enter again a message pump in order to process the server´s callback
-	// notifications, for the same reason explained before.
+	// Enter a message pump in order to process the server´s callback
+	// notifications
 		
 	ticks1 = GetTickCount();
 	printf("Waiting for IOPCDataCallback notifications during 10 seconds...\n");
@@ -121,8 +135,7 @@ void main(void)
 		TranslateMessage(&msg); // This call is not really needed ...
 		DispatchMessage(&msg);  // ... but this one is!
         ticks2 = GetTickCount();
-	//}
-	//while ((ticks2 - ticks1) < 10000);
+	//} while ((ticks2 - ticks1) < 10000);
 
 	// Cancel the callback and release its reference
 	printf("Cancelling the IOPCDataCallback notifications...\n");
@@ -130,14 +143,19 @@ void main(void)
 	//pIConnectionPoint->Release();
 	pSOCDataCallback->Release();
 
-	// Remove the OPC item:
-	printf("Removing the OPC item...\n");
-	RemoveItem(pIOPCItemMgt, hServerItem);
+	// Remove the OPC items:
+	printf("Removing the OPC reading items...\n");
+	RemoveItem(pIOPCItemRead, hServerReadArray);
+
+	printf("Removing the OPC writing items...\n");
+	RemoveItem(pIOPCItemWrite, hServerWriteArray);
 
 	// Remove the OPC group:
-	printf("Removing the OPC group object...\n");
-    pIOPCItemMgt->Release();
-	RemoveGroup(pIOPCServer, hServerGroup);
+	printf("Removing the OPC group objects...\n");
+    pIOPCItemRead->Release();
+	pIOPCItemWrite->Release();
+	RemoveGroup(pIOPCServer, hServerRead);
+	RemoveGroup(pIOPCServer, hServerWrite);
 
 	// release the interface references:
 	printf("Removing the OPC server object...\n");
@@ -195,13 +213,13 @@ IOPCServer* InstantiateServer(wchar_t ServerName[])
 // and a server opc handle to the added group.
 //
 void AddTheGroup(IOPCServer* pIOPCServer, IOPCItemMgt* &pIOPCItemMgt, 
-				 OPCHANDLE& hServerGroup)
+				 OPCHANDLE& hServerGroup, LPCWSTR groupName)
 {
 	DWORD dwUpdateRate = 0;
 	OPCHANDLE hClientGroup = 0;
 
 	// Add an OPC group and get a pointer to the IUnknown I/F:
-    HRESULT hr = pIOPCServer->AddGroup(/*szName*/ L"Group1",
+    HRESULT hr = pIOPCServer->AddGroup(/*szName*/ groupName,
 		/*bActive*/ FALSE,
 		/*dwRequestedUpdateRate*/ 500,
 		/*hClientGroup*/ hClientGroup,
@@ -222,71 +240,15 @@ void AddTheGroup(IOPCServer* pIOPCServer, IOPCItemMgt* &pIOPCItemMgt,
 // is pointed by pIOPCItemMgt pointer. Return a server opc handle
 // to the item.
  
-void AddTheItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem)
+void AddWritingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem)
 {
 	HRESULT hr;
 	int i;
 	// Array of items to add:
-	OPCITEMDEF ItemArray[6] = {{
-			/*szAccessPath*/ L"",
-			/*szItemID*/ ITEM_ID[0],
-			/*bActive*/ TRUE,
-			/*hClient*/ 1,
-			/*dwBlobSize*/ 0,
-			/*pBlob*/ NULL,
-			/*vtRequestedDataType*/ VT_I2,
-			/*wReserved*/0
-		},
-		{
-				/*szAccessPath*/ L"",
-				/*szItemID*/ ITEM_ID[1],
-				/*bActive*/ TRUE,
-				/*hClient*/ 1,
-				/*dwBlobSize*/ 0,
-				/*pBlob*/ NULL,
-				/*vtRequestedDataType*/ VT_I4,
-				/*wReserved*/0
-		},
-		{
-				/*szAccessPath*/ L"",
-				/*szItemID*/ ITEM_ID[2],
-				/*bActive*/ TRUE,
-				/*hClient*/ 1,
-				/*dwBlobSize*/ 0,
-				/*pBlob*/ NULL,
-				/*vtRequestedDataType*/ VT_BSTR,
-				/*wReserved*/0
-		},
-		{
-				/*szAccessPath*/ L"",
-				/*szItemID*/ ITEM_ID[3],
-				/*bActive*/ TRUE,
-				/*hClient*/ 1,
-				/*dwBlobSize*/ 0,
-				/*pBlob*/ NULL,
-				/*vtRequestedDataType*/ VT_I2,
-				/*wReserved*/0
-		},
-		{
-				/*szAccessPath*/ L"",
-				/*szItemID*/ ITEM_ID[4],
-				/*bActive*/ TRUE,
-				/*hClient*/ 1,
-				/*dwBlobSize*/ 0,
-				/*pBlob*/ NULL,
-				/*vtRequestedDataType*/ VT,
-				/*wReserved*/0
-		},
-		{
-				/*szAccessPath*/ L"",
-				/*szItemID*/ ITEM_ID[5],
-				/*bActive*/ TRUE,
-				/*hClient*/ 1,
-				/*dwBlobSize*/ 0,
-				/*pBlob*/ NULL,
-				/*vtRequestedDataType*/ VT_DATE,
-				/*wReserved*/0
-		}
+	OPCITEMDEF ItemArray[3] = {
+		{L"", ITEM_WRITE[0], TRUE, 1, 0, NULL, VT_I2, 0},
+		{L"", ITEM_WRITE[1], TRUE, 1, 0, NULL, VT_I4, 0},
+		{L"", ITEM_WRITE[2], TRUE, 1, 0, NULL, VT_BSTR, 0}
 	};
 
 
@@ -295,14 +257,53 @@ void AddTheItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem)
 	HRESULT* pErrors = NULL;
 
 	// Add an Item to the previous Group:
-	hr = pIOPCItemMgt->AddItems(6, ItemArray, &pAddResult, &pErrors);
+	hr = pIOPCItemMgt->AddItems(3, ItemArray, &pAddResult, &pErrors);
 	if (hr != S_OK){
 		printf("Failed call to AddItems function. Error code = %x\n", hr);
 		exit(0);
 	}
 
 	// Server handle for the added item:
-	for (i=0; i<6; i++) {
+	for (i=0; i<3; i++) {
+		hServerItem[i] = pAddResult[i].hServer;
+	}
+
+
+	// release memory allocated by the server:
+	CoTaskMemFree(pAddResult->pBlob);
+
+	CoTaskMemFree(pAddResult);
+	pAddResult = NULL;
+
+	CoTaskMemFree(pErrors);
+	pErrors = NULL;
+}
+
+void AddReadingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem)
+{
+	HRESULT hr;
+	int i;
+	// Array of items to add:
+	OPCITEMDEF ItemArray[3] = {
+		{ L"", ITEM_READ[0], TRUE, 1, 0, NULL, VT_I2, 0 },
+		{ L"", ITEM_READ[1], TRUE, 1, 0, NULL, VT_R4, 0 },
+		{ L"", ITEM_READ[2], TRUE, 1, 0, NULL, VT_DATE, 0 }
+	};
+
+
+	//Add Result:
+	OPCITEMRESULT* pAddResult = NULL;
+	HRESULT* pErrors = NULL;
+
+	// Add an Item to the previous Group:
+	hr = pIOPCItemMgt->AddItems(3, ItemArray, &pAddResult, &pErrors);
+	if (hr != S_OK) {
+		printf("Failed call to AddItems function. Error code = %x\n", hr);
+		exit(0);
+	}
+
+	// Server handle for the added item:
+	for (i = 0; i<3; i++) {
 		hServerItem[i] = pAddResult[i].hServer;
 	}
 
@@ -326,7 +327,7 @@ void RemoveItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerArray)
 	
 	//Remove the item:
 	HRESULT* pErrors; // to store error code(s)
-	HRESULT hr = pIOPCItemMgt->RemoveItems(6, hServerArray, &pErrors);
+	HRESULT hr = pIOPCItemMgt->RemoveItems(3, hServerArray, &pErrors);
 	_ASSERT(!hr);
 
 	//release memory allocated by the server:

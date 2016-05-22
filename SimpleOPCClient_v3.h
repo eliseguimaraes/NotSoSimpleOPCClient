@@ -26,10 +26,10 @@
 #define SIMPLE_OPC_CLIENT_H
 
 IOPCServer *InstantiateServer(wchar_t ServerName[]);
-void AddTheGroup(IOPCServer* pIOPCServer, IOPCItemMgt* &pIOPCItemMgt, 
-				 OPCHANDLE& hServerGroup);
-void AddTheItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
-void ReadItem(IUnknown* pGroupIUnknown, OPCHANDLE hServerItem, VARIANT& varValue);
+void AddTheGroup(IOPCServer* pIOPCServer, IOPCItemMgt* &pIOPCItemMgt,
+	OPCHANDLE& hServerGroup, LPCWSTR groupName);
+void AddWritingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
+void AddReadingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
 void RemoveItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerArray);
 void RemoveGroup(IOPCServer* pIOPCServer, OPCHANDLE hServerGroup);
 
