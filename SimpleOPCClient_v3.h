@@ -32,5 +32,9 @@ void AddWritingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
 void AddReadingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
 void RemoveItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerArray);
 void RemoveGroup(IOPCServer* pIOPCServer, OPCHANDLE hServerGroup);
-
+void main(void);
+DWORD WINAPI OPCThread1(LPVOID id);
+DWORD WINAPI OPCThread2(LPVOID id);
+void SocketThread();
+void DataChanged(VARIANT pValue, char* value);
 #endif // SIMPLE_OPC_CLIENT_H not defined

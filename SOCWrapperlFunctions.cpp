@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include "opcda.h"
 #include "SOCAdviseSink.h"
+#include "SimpleOPCClient_v3.h"
 
 extern UINT OPC_DATA_TIME; // Defined in "SimpleOPCClient.cpp"
 
@@ -154,6 +155,7 @@ bool VarToStr (VARIANT pvar, char *buffer)
 			vReturn = false;
 			break;
 	}
+	DataChanged(pvar,buffer);
 	return(vReturn);
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -171,7 +173,7 @@ void SetDataCallback(
 	IConnectionPointContainer* pIConnPtCont = NULL; //pointer to IConnectionPointContainer
 	                                                //interface
         
-	//Get a pointer to the IConnectionPointContainer interface:
+	// Get a pointer to the IConnectionPointContainer interface:
     hr = pGroupIUnknown->QueryInterface(__uuidof(pIConnPtCont), (void**) &pIConnPtCont);
 	if (hr != S_OK){
 		printf ("Could not obtain a pointer to IConnectionPointContainer. Error = %x\n",

@@ -25,13 +25,28 @@
 #include <atlbase.h>    // required for using the "_T" macro
 #include <iostream>
 #include <ObjIdl.h>
-
 #include "opcda.h"
 #include "opcerror.h"
 #include "SimpleOPCClient_v3.h"
 #include "SOCAdviseSink.h"
 #include "SOCDataCallback.h"
 #include "SOCWrapperFunctions.h"
+
+typedef unsigned (WINAPI *CAST_FUNCTION)(LPVOID);
+
+typedef unsigned *CAST_LPDWORD;
+
+struct readStruct {
+	int prod;
+	float oee;
+	char time[8];
+};
+
+struct writeStruct {
+	int cim;
+	int ton;
+	char time[8];
+};
 
 using namespace std;
 
@@ -47,22 +62,73 @@ UINT OPC_DATA_TIME = RegisterClipboardFormat (_T("OPCSTMFORMATDATATIME"));
 
 wchar_t *ITEM_READ[3]= {L"Random.Int2",L"Random.Real4",L"Random.Time"};
 wchar_t *ITEM_WRITE[3] = {L"Bucket Brigade.Int2", L"Bucket Brigade.Int4", L"Bucket Brigade.String"};
+
+struct writeStruct writeData;
+struct readStruct readData;
+
+HANDLE hItemsToWrite;	// Binary Semaphore to indicate new items to be written to the OPC Server
+
+HANDLE thread2;
+DWORD dwThreadId;
+
+HANDLE readMutex;
+
+IOPCServer* pIOPCServer = NULL;   //pointer to IOPServer interface
+
+IOPCItemMgt* pIOPCItemRead = NULL; //pointer to IOPCItemMgt interface
+IOPCItemMgt* pIOPCItemWrite = NULL; //pointer to IOPCItemMgt interface for the writing group
+
+OPCHANDLE hServerRead; // server handle to the reading group
+OPCHANDLE hServerWrite; // server handle to the writing group
+
+OPCHANDLE hServerReadArray[3];  // server handle to the reading item array
+OPCHANDLE hServerWriteArray[3];  // server handle to the writing item array
+
+LPCWSTR readingGroupName = L"Group1";
+LPCWSTR writingGroupName = L"Group2";
 //////////////////////////////////////////////////////////////////////
 // Read the value of an item on an OPC server. 
 //
 void main(void)
 {
-	IOPCServer* pIOPCServer = NULL;   //pointer to IOPServer interface
-	IOPCItemMgt* pIOPCItemRead = NULL; //pointer to IOPCItemMgt interface
-	IOPCItemMgt* pIOPCItemWrite = NULL; //pointer to IOPCItemMgt interface for the writing group
+	HANDLE hThreads[2]; // Handles for the threads
+	DWORD dwThreadId1, dwThreadId2;
+	DWORD dwRet;
 
-	OPCHANDLE hServerRead; // server handle to the reading group
-	OPCHANDLE hServerWrite; // server handle to the writing group
-	OPCHANDLE hServerReadArray[3];  // server handle to the reading item array
-	OPCHANDLE hServerWriteArray[3];  // server handle to the writing item array
+	hThreads[0] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)OPCThread1, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId1);
+	if (hThreads[0]) {
+		printf("OPC thread created with id %0x\n", dwThreadId1);
+	}
+	else {
+		printf("Error creating thread");
+		exit(0);
+	}
 
-	LPCWSTR readingGroupName = L"Group1";
-	LPCWSTR writingGroupName = L"Group2";
+	hThreads[1] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)SocketThread, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId1);
+	if (hThreads[1]) {
+		printf("OPC thread created with id %0x\n", dwThreadId1);
+	}
+	else {
+		printf("Error creating thread");
+		exit(0);
+	}
+
+	hItemsToWrite = CreateSemaphore(NULL, 0, 1, "WriteSemaphore");
+
+	readMutex = CreateMutex(NULL,FALSE, "ReadMutex");
+
+	WaitForMultipleObjects(2, hThreads, true, INFINITE);
+
+	// Close all kernel objects' handles
+	for (int i = 0; i < 2; i++) {
+		CloseHandle(hThreads[i]);
+	}
+
+	CloseHandle(hItemsToWrite);
+}
+
+DWORD WINAPI OPCThread1(LPVOID id) {
+	
 
 	int i;
 	char buf[100];
@@ -74,7 +140,7 @@ void main(void)
 	// Let's instantiante the IOPCServer interface and get a pointer of it:
 	printf("Intantiating the MATRIKON OPC Server for Simulation...\n");
 	pIOPCServer = InstantiateServer(OPC_SERVER_NAME);
-	
+
 	// Add the OPC groups for reading and writing the OPC server and get an handle to the IOPCItemMgt
 	//interfaces:
 	printf("Adding a reading group in the INACTIVE state for the moment...\n");
@@ -87,12 +153,12 @@ void main(void)
 	// Add the OPC items. First we have to convert from wchar_t* to char*
 	// in order to print the item name in the console.
 	size_t m;
-	for (i=0; i<3; i++) {
+	for (i = 0; i<3; i++) {
 		wcstombs_s(&m, buf, 100, ITEM_READ[i], _TRUNCATE);
 		printf("Adding the item %s to the reading group...\n", buf);
 	}
 
-    AddReadingItems(pIOPCItemRead, hServerReadArray);
+	AddReadingItems(pIOPCItemRead, hServerReadArray);
 
 	for (i = 0; i<3; i++) {
 		wcstombs_s(&m, buf, 100, ITEM_WRITE[i], _TRUNCATE);
@@ -100,10 +166,18 @@ void main(void)
 	}
 	AddWritingItems(pIOPCItemWrite, hServerWriteArray);
 
+	thread2 = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)OPCThread2, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId);
+	if (thread2) {
+		printf("OPC thread created with id %0x\n", dwThreadId);
+	}
+	else {
+		printf("Error creating thread");
+		exit(0);
+	}
+
 	int bRet;
 	MSG msg;
-	DWORD ticks1, ticks2;
-    
+
 	// Establish a callback asynchronous read by means of the IOPCDataCallback
 	// (OPC DA 2.0) method. We first instantiate a new SOCDataCallback object and
 	// adjusts its reference count, and then call a wrapper function to
@@ -119,27 +193,25 @@ void main(void)
 	// Change the reading group to the ACTIVE state so that we can receive the
 	// server´s callback notification
 	printf("Changing the reading group state to ACTIVE...\n");
-    SetGroupActive(pIOPCItemRead);
+	SetGroupActive(pIOPCItemRead);
 
 	// Enter a message pump in order to process the server´s callback
 	// notifications
-		
-	ticks1 = GetTickCount();
-	printf("Waiting for IOPCDataCallback notifications during 10 seconds...\n");
+
+	printf("Waiting for IOPCDataCallback notifications...\n");
 	do {
-		bRet = GetMessage( &msg, NULL, 0, 0 );
-		if (!bRet){
-			printf ("Failed to get windows message! Error code = %d\n", GetLastError());
+		bRet = GetMessage(&msg, NULL, 0, 0);
+		if (!bRet) {
+			printf("Failed to get windows message! Error code = %d\n", GetLastError());
 			exit(0);
 		}
 		TranslateMessage(&msg); // This call is not really needed ...
 		DispatchMessage(&msg);  // ... but this one is!
-        ticks2 = GetTickCount();
-	} while ((ticks2 - ticks1) < 10000);
+	} while (1);
 
 	// Cancel the callback and release its reference
 	printf("Cancelling the IOPCDataCallback notifications...\n");
-    CancelDataCallback(pIConnectionPoint, dwCookie);
+	CancelDataCallback(pIConnectionPoint, dwCookie);
 	//pIConnectionPoint->Release();
 	pSOCDataCallback->Release();
 
@@ -152,7 +224,7 @@ void main(void)
 
 	// Remove the OPC group:
 	printf("Removing the OPC group objects...\n");
-    pIOPCItemRead->Release();
+	pIOPCItemRead->Release();
 	pIOPCItemWrite->Release();
 	RemoveGroup(pIOPCServer, hServerRead);
 	RemoveGroup(pIOPCServer, hServerWrite);
@@ -162,8 +234,50 @@ void main(void)
 	pIOPCServer->Release();
 
 	//close the COM library:
-	printf ("Releasing the COM environment...\n");
+	printf("Releasing the COM environment...\n");
 	CoUninitialize();
+	return;
+}
+
+DWORD WINAPI OPCThread2(LPVOID id) {
+	// Awaits writing semaphore
+	VARIANT var;
+	while (1) {
+		WaitForSingleObject(hItemsToWrite,INFINITE);
+		
+		WriteItem(pIOPCItemWrite, hServerRead, &var);
+	}
+	_endthreadex((DWORD)0);
+	return 0;
+}
+
+void SocketThread() {
+
+}
+
+void DataChanged(VARIANT pvar, char* value) {
+	WaitForSingleObject(readMutex, INIFITE);
+	switch (pvar.vt) {
+		case VT_I2:
+			readData.prod = pvar.intVal;
+			break;
+		case VT_R4:
+			readData.oee = pvar.fltVal;
+			break;
+		case VT_DATE:
+			SYSTEMTIME s;
+			VariantTimeToSystemTime(pvar.date, &s);
+			sprintf(readData.time,
+				"%02d:%02d:%02d",
+				s.wHour,
+				s.wMinute,
+				s.wSecond);
+			break;
+		default:
+			cout << "An error ocurred while reading data assynchronously from the OPC Server. Aborting...";
+			exit(0);
+	}
+	ReleaseMutex(readMutex);
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -207,7 +321,7 @@ IOPCServer* InstantiateServer(wchar_t ServerName[])
 
 
 /////////////////////////////////////////////////////////////////////
-// Add group "Group1" to the Server whose IOPCServer interface
+// Add group with name groupName to the Server whose IOPCServer interface
 // is pointed by pIOPCServer. 
 // Returns a pointer to the IOPCItemMgt interface of the added group
 // and a server opc handle to the added group.
