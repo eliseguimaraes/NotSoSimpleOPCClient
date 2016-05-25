@@ -25,6 +25,24 @@
 #ifndef SIMPLE_OPC_CLIENT_H
 #define SIMPLE_OPC_CLIENT_H
 
+
+struct readStruct {
+	int prod;
+	float oee;
+	char time[8];
+};
+
+struct writeStruct {
+	int cim;
+	int ton;
+	char time[8];
+};
+
+struct threadData {
+	IOPCItemMgt* pIOPCItemMgt;
+	OPCHANDLE* hServerItem;
+};
+
 IOPCServer *InstantiateServer(wchar_t ServerName[]);
 void AddTheGroup(IOPCServer* pIOPCServer, IOPCItemMgt* &pIOPCItemMgt,
 	OPCHANDLE& hServerGroup, LPCWSTR groupName);
@@ -32,9 +50,11 @@ void AddWritingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
 void AddReadingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
 void RemoveItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerArray);
 void RemoveGroup(IOPCServer* pIOPCServer, OPCHANDLE hServerGroup);
+void WriteItem(IUnknown * pGroupIUnknown, OPCHANDLE hServerItem, VARIANT * varValue);
 void main(void);
 DWORD WINAPI OPCThread1(LPVOID id);
 DWORD WINAPI OPCThread2(LPVOID id);
 void SocketThread();
+void wait(int x);
 void DataChanged(VARIANT pValue, char* value);
 #endif // SIMPLE_OPC_CLIENT_H not defined
