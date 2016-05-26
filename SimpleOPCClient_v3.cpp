@@ -81,7 +81,6 @@ HANDLE thread2;
 DWORD dwThreadId;
 
 HANDLE readMutex;
-HANDLE writeMutex;
 
 
 //////////////////////////////////////////////////////////////////////
@@ -113,7 +112,6 @@ void main(void)
 	hItemsToWrite = CreateSemaphore(NULL, 0, 1, "WriteSemaphore");
 
 	readMutex = CreateMutex(NULL, FALSE, "ReadMutex");
-	writeMutex = CreateMutex(NULL, FALSE, "WriteMutex");
 
 	WaitForMultipleObjects(2, hThreads, true, INFINITE);
 
@@ -122,7 +120,6 @@ void main(void)
 		CloseHandle(hThreads[i]);
 	}
 	CloseHandle(readMutex);
-	CloseHandle(writeMutex);
 	CloseHandle(hItemsToWrite);
 }
 
@@ -266,8 +263,8 @@ DWORD WINAPI SocketThread(LPVOID id) {
 	int recvbuflen = DEFAULT_BUFLEN;
 	int sendbuflen = 0;
 
-	int mCode, mSeq, mType, mTon, ackSeq = 0, prodSeq;
-	int m2seq, m2Code;
+	int mCode, mSeq, mType, mTon, ackSeq = 0;
+	int m2seq;
 	m2seq = 0;
 	char mHour[256];
 	char ack[256];
@@ -638,7 +635,6 @@ void WriteItem(IUnknown* pGroupIUnknown, OPCHANDLE hServerItem, VARIANT *varValu
 	HRESULT* pErrors = NULL; //to store error code(s)
 	HRESULT hr = pIOPCSyncIO->Write(1, &hServerItem, varValue, &pErrors);
 	_ASSERT(!hr);
-
 	//Release memeory allocated by the OPC server:
 	CoTaskMemFree(pErrors);
 	pErrors = NULL;
