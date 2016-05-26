@@ -2,9 +2,9 @@
 //
 // This is a modified version of the "Simple OPC Client" originally
 // developed by Philippe Gras (CERN) for demonstrating the basic techniques
-// involved in the development of an OPC DA client.
+// involved in the development of an OPC DA client, and furtherly modified by UFMG's professor Luiz T. S. Mendes.
 //
-// The modifications are the introduction of two C++ classes to allow the
+// The modifications made by prof. Luiz are the introduction of two C++ classes to allow the
 // the client to ask for callback notifications from the OPC server, and
 // the corresponding introduction of a message comsumption loop in the
 // main program to allow the client to process those notifications. The
@@ -13,13 +13,29 @@
 // KEPWARE´s  OPC client sample code. A few wrapper functions to initiate
 // and to cancel the notifications were also developed.
 //
+// Further to prof. Luiz's modifications, my modifications were:
+// -Removal of the C++ classes that implemented the OPC DA 1.0 IAdviseSink
+// -Removal of the C++ class that implemented synchronous reading
+// -Introduction of 6 new items, 3 of them to be read and 3 to be written on
+// -Introduction of a C++ class that implements synchronous writing using the IOPCSyncIO interface
+// -Initialization of the environment using multi thread apartments, instead of the original single thread apartments
+// -Removal of the message comsumption loop, no longer necessary with the MTA newly introduced approach
+// -Replacement of the C++ class AddTheItems by two similar classes, one for the reading itens and another for the writing ones, both capable of adding arrays of items instead of single items.
+// -Changes to the AddTheGroup C++ class, for it to take the group name as a parameter instead of a fixed one and changing the reading interval to 500ms.
+// -Creation of two groups - one for reading and another for writing -, both with multiple items.
+// -Addition of case VT_DATE to the method VarToStr, with proper conversion between these types implemented as well.
+// -Introduction of multithread behavior to the code, transfering all the OPC calls to the OPCThread method.
+// -Introduction of mutexes and semaphores to deal with multiple access to variables
+// -Integration of a socket server to the code, inside it's own thread, which runs the method SocketThread
+//
 // The original Simple OPC Client code can still be found (as of this date)
 // in
 //        http://pgras.home.cern.ch/pgras/OPCClientTutorial/
+// 
+// 
 //
-//
-// Luiz T. S. Mendes - DELT/UFMG - 15 Sept 2011
-// luizt at cpdee.ufmg.br
+// Elise Guimaraes de Araujo - UFMG - 26/05/2016
+// elise.guimaraes at ufmg.br
 //
 
 #undef UNICODE
@@ -59,7 +75,7 @@ typedef unsigned *CAST_LPDWORD;
 
 using namespace std;
 
-#define OPC_SERVER_NAME L"Matrikon.OPC.Simulation.1"
+#define OPC_SERVER_NAME L"Matrikon.OPC.Simulation.1"	// Server name
 
 //#define REMOTE_SERVER_NAME L"your_path"
 
@@ -69,22 +85,22 @@ using namespace std;
 // them. The one below refers to the OPC DA 1.0 IDataObject interface.
 UINT OPC_DATA_TIME = RegisterClipboardFormat(_T("OPCSTMFORMATDATATIME"));
 
-wchar_t *ITEM_READ[3] = { L"Random.Int2",L"Random.Real4",L"Random.Time" };
-wchar_t *ITEM_WRITE[3] = { L"Bucket Brigade.Int2", L"Bucket Brigade.Int4", L"Bucket Brigade.String" };
+wchar_t *ITEM_READ[3] = { L"Random.Int2",L"Random.Real4",L"Random.Time" };	// Ids of items to be read
+wchar_t *ITEM_WRITE[3] = { L"Bucket Brigade.Int2", L"Bucket Brigade.Int4", L"Bucket Brigade.String" };	// Ids of items to be written on
 
 struct writeStruct writeData;
 struct readStruct readData;
 
 HANDLE hItemsToWrite;	// Binary Semaphore to indicate new items to be written to the OPC Server
 
-HANDLE thread2;
+HANDLE thread2;			// Handle 
 DWORD dwThreadId;
 
 HANDLE readMutex;
 
 
 //////////////////////////////////////////////////////////////////////
-// Read the value of an item on an OPC server. 
+// Main method. Initializes all the threads and synchronization items.
 //
 void main(void)
 {
@@ -123,6 +139,7 @@ void main(void)
 	CloseHandle(hItemsToWrite);
 }
 
+// Method ran by the OPC Thread, responsible for all the OPC-related calls
 DWORD WINAPI OPCThread1(LPVOID id) {
 	IOPCServer* pIOPCServer = NULL;   //pointer to IOPServer interface
 
@@ -272,7 +289,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 	// Initialize Winsock
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0) {
-		printf("WSAStartup falhou com erro: %d\n", iResult);
+		printf("WSAStartup failed: %d\n", iResult);
 		return 1;
 	}
 	// configuração da struct addrinfo
@@ -285,14 +302,14 @@ DWORD WINAPI SocketThread(LPVOID id) {
 										// Endereço e porta do servidor
 	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
-		printf("getaddrinfo falhou com erro: %d\n", iResult);
+		printf("getaddrinfo failed: %d\n", iResult);
 		WSACleanup();
 		return 1;
 	}
 
 	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (ListenSocket == INVALID_SOCKET) {
-		printf("socket falhou com erro: %ld\n", WSAGetLastError());
+		printf("socket failed: %ld\n", WSAGetLastError());
 		freeaddrinfo(result);
 		WSACleanup();
 		return 1;
@@ -300,7 +317,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 
 	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
 	if (iResult == SOCKET_ERROR) {
-		printf("bind falhou com erro: %d\n", WSAGetLastError());
+		printf("bind failed: %d\n", WSAGetLastError());
 		freeaddrinfo(result);
 		closesocket(ListenSocket);
 		WSACleanup();
@@ -311,7 +328,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 
 	iResult = listen(ListenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR) {
-		printf("listen falhou com erro: %d\n", WSAGetLastError());
+		printf("listen failed: %d\n", WSAGetLastError());
 		closesocket(ListenSocket);
 		WSACleanup();
 		return 1;
@@ -320,7 +337,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 	// Aceita o connection socket
 	ClientSocket = accept(ListenSocket, NULL, NULL);
 	if (ClientSocket == INVALID_SOCKET) {
-		printf("accept falhou com erro: %d\n", WSAGetLastError());
+		printf("accept failed: %d\n", WSAGetLastError());
 		closesocket(ListenSocket);
 		WSACleanup();
 		return 1;
@@ -334,7 +351,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 
 		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
 		if (iResult > 0) {
-			printf("Bytes recebidos: %d\n", iResult);
+			printf("Bytes received: %d\n", iResult);
 			recvbuf[iResult] = '\0'; // Removendo lixo de memória
 
 			sscanf(recvbuf, "%d", &mCode);
@@ -354,7 +371,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 				ack[17] = '\0';
 				iSendResult = send(ClientSocket, ack, strlen(ack), 0);
 				if (iSendResult == SOCKET_ERROR) {
-					printf("send falhou com erro: %d\n", WSAGetLastError());
+					printf("send failed: %d\n", WSAGetLastError());
 					closesocket(ClientSocket);
 					WSACleanup();
 					return 1;
@@ -368,7 +385,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 				sendbuf[44] = '\0';
 				iSendResult = send(ClientSocket, sendbuf, strlen(sendbuf), 0);
 				if (iSendResult == SOCKET_ERROR) {
-					printf("send falhou com erro: %d\n", WSAGetLastError());
+					printf("send failed: %d\n", WSAGetLastError());
 					closesocket(ClientSocket);
 					WSACleanup();
 					return 1;
@@ -386,7 +403,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 		else if (iResult == 0)
 			printf("Conexão encerrando...\n");
 		else {
-			printf("recv falhou com erro: %d\n", WSAGetLastError());
+			printf("recv failed: %d\n", WSAGetLastError());
 			closesocket(ClientSocket);
 			WSACleanup();
 			return 1;
@@ -410,6 +427,10 @@ DWORD WINAPI SocketThread(LPVOID id) {
 	return 0;
 }
 
+////////////////////////////////////////////////////////////////////
+// Method called by the VarToStr method, indicating new data was
+// read assynchronously from the OPC Server.
+//
 void DataChanged(VARIANT pvar, char* value) {
 	WaitForSingleObject(readMutex, INFINITE);
 	switch (pvar.vt) {
