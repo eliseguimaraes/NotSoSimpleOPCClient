@@ -22,6 +22,15 @@
 // luizt at cpdee.ufmg.br
 //
 
+#undef UNICODE
+
+#define WIN32_LEAN_AND_MEAN
+
+#include <windows.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <atlbase.h>    // required for using the "_T" macro
 #include <iostream>
 #include <ObjIdl.h>
@@ -35,6 +44,14 @@
 
 #pragma comment(lib, "comsuppw.lib")
 #pragma comment(lib, "kernel32.lib")
+
+// Need to link with Ws2_32.lib
+#pragma comment (lib, "Ws2_32.lib")
+// #pragma comment (lib, "Mswsock.lib")
+
+#define DEFAULT_BUFLEN 512
+#define DEFAULT_PORT "4660"
+#define MAX_SEQ 99999999
 
 typedef unsigned (WINAPI *CAST_FUNCTION)(LPVOID);
 
@@ -74,7 +91,6 @@ void main(void)
 {
 	HANDLE hThreads[2]; // Handles for the threads
 	DWORD dwThreadId1, dwThreadId2;
-	DWORD dwRet;
 
 	hThreads[0] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)OPCThread1, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId1);
 	if (hThreads[0]) {
@@ -85,7 +101,7 @@ void main(void)
 		exit(0);
 	}
 
-	hThreads[1] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)SocketThread, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId1);
+	hThreads[1] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)SocketThread, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId2);
 	if (hThreads[1]) {
 		printf("OPC thread created with id %0x\n", dwThreadId1);
 	}
@@ -125,14 +141,12 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 	LPCWSTR readingGroupName = L"Group1";
 	LPCWSTR writingGroupName = L"Group2";
 
-	struct threadData data;
-
 	int i;
 	char buf[100];
 
 	// Have to be done before using microsoft COM library:
 	printf("Initializing the COM environment...\n");
-	CoInitialize(NULL);
+	CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
 	// Let's instantiante the IOPCServer interface and get a pointer of it:
 	printf("Intantiating the MATRIKON OPC Server for Simulation...\n");
@@ -180,59 +194,34 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 	printf("Changing the reading group state to ACTIVE...\n");
 	SetGroupActive(pIOPCItemMgtRead);
 
-	/*thread2 = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)OPCThread2, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId);
-	if (thread2) {
-		printf("OPC thread created with id %0x\n", dwThreadId);
-	}
-	else {
-		printf("Error creating thread");
-		exit(0);
-	}*/
-
-	int bRet;
-	MSG msg;
 	printf("Waiting for IOPCDataCallback notifications...\n");
-	//do {
-	//	bRet = GetMessage(&msg, NULL, 0, 0);
-	//	if (!bRet) {
-	//		printf("Failed to get windows message! Error code = %d\n", GetLastError());
-	//		exit(0);
-	//	}
-	//	TranslateMessage(&msg); // This call is not really needed ...
-	//	DispatchMessage(&msg);  // ... but this one is!
-	//} while (1);
-
 	VARIANT var;
-	DWORD WINAPI rt, rt2;
+	DWORD rt;
 	while (1) {
-		rt = WaitForSingleObject(hItemsToWrite, 1);
-		if (rt == WAIT_OBJECT_0) {
-			//rt2 = WaitForSingleObject(writeMutex, 1);
-			//if (rt2 == WAIT_OBJECT_0) {
-				V_VT(&var) = VT_I2;
-				V_I2(&var) = writeData.cim;
-				WriteItem(pIOPCItemMgtWrite, hServerWriteArray[0], &var);
-				V_VT(&var) = VT_I4;
-				V_I4(&var) = writeData.ton;
-				WriteItem(pIOPCItemMgtWrite, hServerWriteArray[1], &var);
-				V_VT(&var) = VT_BSTR;
-				BSTR bstrText = _com_util::ConvertStringToBSTR(writeData.time);
-				V_BSTR(&var) = bstrText;
-				SysFreeString(bstrText);
-				WriteItem(pIOPCItemMgtWrite, hServerWriteArray[2], &var);
-			//	ReleaseMutex(writeMutex);
-			//}
-		}
-		bRet = GetMessage(&msg, NULL, 0, 0);
-		if (!bRet) {
-			printf("Failed to get windows message! Error code = %d\n", GetLastError());
+		rt = WaitForSingleObject(hItemsToWrite, INFINITE);
+		if (rt != WAIT_OBJECT_0) {
+			cout << "An error ocurred while waiting a semaphore. Terminating execution...";
 			exit(0);
 		}
-		TranslateMessage(&msg); // This call is not really needed ...
-		DispatchMessage(&msg);  // ... but this one is!
-	}
+		rt = WaitForSingleObject(writeMutex, INFINITE);
+		if (rt != WAIT_OBJECT_0) {
+			cout << "An error ocurred while waiting a mutex. Terminating execution...";
+			exit(0);
+		}
+		V_VT(&var) = VT_I2;
+		V_I2(&var) = writeData.cim;
+		WriteItem(pIOPCItemMgtWrite, hServerWriteArray[0], &var);
+		V_VT(&var) = VT_I4;
+		V_I4(&var) = writeData.ton;
+		WriteItem(pIOPCItemMgtWrite, hServerWriteArray[1], &var);
+		V_VT(&var) = VT_BSTR;
+		BSTR bstrText = _com_util::ConvertStringToBSTR(writeData.time);
+		V_BSTR(&var) = bstrText;
+		SysFreeString(bstrText);
+		WriteItem(pIOPCItemMgtWrite, hServerWriteArray[2], &var);
+		ReleaseMutex(writeMutex);
 
-	//WaitForSingleObject(thread2, INFINITE);
+	}
 
 	// Cancel the callback and release its reference
 	printf("Cancelling the IOPCDataCallback notifications...\n");
@@ -261,49 +250,172 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 	//close the COM library:
 	printf("Releasing the COM environment...\n");
 	CoUninitialize();
+	_endthreadex(0);
 	return 0;
 }
 
-DWORD WINAPI OPCThread2(LPVOID id) {
-	// Enter a message pump in order to process the server´s callback
-	// notifications
-	int bRet;
-	MSG msg;
-	printf("Waiting for IOPCDataCallback notifications...\n");
-	do {
-		bRet = GetMessage(&msg, NULL, 0, 0);
-		if (!bRet) {
-			printf("Failed to get windows message! Error code = %d\n", GetLastError());
-			exit(0);
-		}
-		TranslateMessage(&msg); // This call is not really needed ...
-		DispatchMessage(&msg);  // ... but this one is!
-	} while (1);
-	_endthreadex((DWORD)0);
-	return 0;
-}
 
-void SocketThread() {
+DWORD WINAPI SocketThread(LPVOID id) {
 	LONG lOldValue;
-	int x = 1000;
-	for (int i = 0; i < 10; i++) {
-		//WaitForSingleObject(writeMutex, 1);
-		writeData.cim = i + 2;
-		strcpy(writeData.time, "14:44:28");
-		writeData.ton = i + 3;
-		ReleaseSemaphore(hItemsToWrite, 1, &lOldValue);
-		//ReleaseMutex(writeMutex);
-		wait(x);
-	}
-}
+	WSADATA wsaData;
+	int iResult;
 
-void wait(int x) {
-	DWORD ticks1, ticks2;
-	ticks1 = GetTickCount();
-	ticks2 = GetTickCount();
-	while ((ticks2 - ticks1) < x) {
-		ticks2 = GetTickCount();
+	SOCKET ListenSocket = INVALID_SOCKET;
+	SOCKET ClientSocket = INVALID_SOCKET;
+
+	struct addrinfo *result = NULL;
+	struct addrinfo hints;
+
+	int iSendResult;
+	char recvbuf[DEFAULT_BUFLEN];
+	char sendbuf[DEFAULT_BUFLEN];
+	int recvbuflen = DEFAULT_BUFLEN;
+	int sendbuflen = 0;
+
+	int mCode, mSeq, mType, mTon, ackSeq = 0, prodSeq;
+	int m2seq, m2Code;
+	m2seq = 0;
+	char mHour[256];
+	char ack[17];
+
+	// Initialize Winsock
+	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (iResult != 0) {
+		printf("WSAStartup falhou com erro: %d\n", iResult);
+		return 1;
 	}
+	// configuração da struct addrinfo
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;			// Família IPv4
+	hints.ai_socktype = SOCK_STREAM;	// Tipo: Stream socket (TCP)
+	hints.ai_protocol = IPPROTO_TCP;	// Protocolo: TCP
+	hints.ai_flags = AI_PASSIVE;		// Socker passivo (servidor)
+
+										// Endereço e porta do servidor
+	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
+	if (iResult != 0) {
+		printf("getaddrinfo falhou com erro: %d\n", iResult);
+		WSACleanup();
+		return 1;
+	}
+
+	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
+	if (ListenSocket == INVALID_SOCKET) {
+		printf("socket falhou com erro: %ld\n", WSAGetLastError());
+		freeaddrinfo(result);
+		WSACleanup();
+		return 1;
+	}
+
+	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
+	if (iResult == SOCKET_ERROR) {
+		printf("bind falhou com erro: %d\n", WSAGetLastError());
+		freeaddrinfo(result);
+		closesocket(ListenSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	freeaddrinfo(result);
+
+	iResult = listen(ListenSocket, SOMAXCONN);
+	if (iResult == SOCKET_ERROR) {
+		printf("listen falhou com erro: %d\n", WSAGetLastError());
+		closesocket(ListenSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	// Aceita o connection socket
+	ClientSocket = accept(ListenSocket, NULL, NULL);
+	if (ClientSocket == INVALID_SOCKET) {
+		printf("accept falhou com erro: %d\n", WSAGetLastError());
+		closesocket(ListenSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	// Socket passivo já não é necessário, já que connection socket foi obtido
+	closesocket(ListenSocket);
+
+	// Recebe até que o cliente encerre a conexão
+	do {
+
+		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
+		if (iResult > 0) {
+			printf("Bytes recebidos: %d\n", iResult);
+			recvbuf[iResult] = '\0'; // Removendo lixo de memória
+
+			sscanf(recvbuf, "%d", &mCode);
+			if (mCode == 1 && iResult == 44) { //setup
+				sscanf(recvbuf + 9, "%d", &mSeq);
+				sscanf(recvbuf + 2 * 9, "%d", &mType);
+				sscanf(recvbuf + 3 * 9, "%d", &mTon);
+				sscanf(recvbuf + 4 * 9, "%s", &mHour);
+				mHour[8] = '\0';
+				WaitForSingleObject(writeMutex, INFINITE);
+				writeData.cim = mType;
+				strcpy(writeData.time, mHour);
+				writeData.ton = mTon;
+				ReleaseSemaphore(hItemsToWrite, 1, &lOldValue);
+				ReleaseMutex(writeMutex);
+				//send ack
+				sprintf(ack, "%.08d|%.08d", 2, (ackSeq++) % MAX_SEQ);
+				iSendResult = send(ClientSocket, ack, strlen(ack), 0);
+				if (iSendResult == SOCKET_ERROR) {
+					printf("send falhou com erro: %d\n", WSAGetLastError());
+					closesocket(ClientSocket);
+					WSACleanup();
+					return 1;
+				}
+			}
+			else if (mCode == 5 && iResult == 17) { //solicitação
+				WaitForSingleObject(readMutex, INFINITE);
+
+				sprintf(sendbuf, "%.08d|%.08d|%.08d|%08.7g|%s", 10, (m2seq++) % MAX_SEQ, readData.prod, readData.oee, readData.time);
+				sendbuf[44] = '\0';
+				iSendResult = send(ClientSocket, sendbuf, strlen(sendbuf), 0);
+				if (iSendResult == SOCKET_ERROR) {
+					printf("send falhou com erro: %d\n", WSAGetLastError());
+					closesocket(ClientSocket);
+					WSACleanup();
+					return 1;
+				}
+				ReleaseMutex(readMutex);
+
+			}
+			else {
+				printf("A mensagem recebida não é compatível. Encerrando...");
+				closesocket(ClientSocket);
+				WSACleanup();
+				return 1;
+			}
+		}
+		else if (iResult == 0)
+			printf("Conexão encerrando...\n");
+		else {
+			printf("recv falhou com erro: %d\n", WSAGetLastError());
+			closesocket(ClientSocket);
+			WSACleanup();
+			return 1;
+		}
+
+	} while (iResult > 0);
+
+	// encerra a conexão
+	iResult = shutdown(ClientSocket, SD_SEND);
+	if (iResult == SOCKET_ERROR) {
+		printf("shutdown falhou com erro: %d\n", WSAGetLastError());
+		closesocket(ClientSocket);
+		WSACleanup();
+		return 1;
+	}
+
+	// Limpeza
+	closesocket(ClientSocket);
+	WSACleanup();
+	_endthreadex(0);
+	return 0;
 }
 
 void DataChanged(VARIANT pvar, char* value) {
