@@ -203,11 +203,6 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 			cout << "An error ocurred while waiting a semaphore. Terminating execution...";
 			exit(0);
 		}
-		rt = WaitForSingleObject(writeMutex, INFINITE);
-		if (rt != WAIT_OBJECT_0) {
-			cout << "An error ocurred while waiting a mutex. Terminating execution...";
-			exit(0);
-		}
 		V_VT(&var) = VT_I2;
 		V_I2(&var) = writeData.cim;
 		WriteItem(pIOPCItemMgtWrite, hServerWriteArray[0], &var);
@@ -219,7 +214,6 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 		V_BSTR(&var) = bstrText;
 		SysFreeString(bstrText);
 		WriteItem(pIOPCItemMgtWrite, hServerWriteArray[2], &var);
-		ReleaseMutex(writeMutex);
 
 	}
 
@@ -276,7 +270,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 	int m2seq, m2Code;
 	m2seq = 0;
 	char mHour[256];
-	char ack[17];
+	char ack[256];
 
 	// Initialize Winsock
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -353,14 +347,14 @@ DWORD WINAPI SocketThread(LPVOID id) {
 				sscanf(recvbuf + 3 * 9, "%d", &mTon);
 				sscanf(recvbuf + 4 * 9, "%s", &mHour);
 				mHour[8] = '\0';
-				WaitForSingleObject(writeMutex, INFINITE);
 				writeData.cim = mType;
 				strcpy(writeData.time, mHour);
 				writeData.ton = mTon;
 				ReleaseSemaphore(hItemsToWrite, 1, &lOldValue);
-				ReleaseMutex(writeMutex);
 				//send ack
-				sprintf(ack, "%.08d|%.08d", 2, (ackSeq++) % MAX_SEQ);
+				sprintf(ack, "%.08d|%.08d", 2, ackSeq);
+				ackSeq = (ackSeq + 1)%MAX_SEQ;
+				ack[17] = '\0';
 				iSendResult = send(ClientSocket, ack, strlen(ack), 0);
 				if (iSendResult == SOCKET_ERROR) {
 					printf("send falhou com erro: %d\n", WSAGetLastError());
@@ -372,7 +366,8 @@ DWORD WINAPI SocketThread(LPVOID id) {
 			else if (mCode == 5 && iResult == 17) { //solicitação
 				WaitForSingleObject(readMutex, INFINITE);
 
-				sprintf(sendbuf, "%.08d|%.08d|%.08d|%08.7g|%s", 10, (m2seq++) % MAX_SEQ, readData.prod, readData.oee, readData.time);
+				sprintf(sendbuf, "%.08d|%.08d|%.08d|%08.7g|%s", 10, m2seq, readData.prod, readData.oee, readData.time);
+				m2seq = (m2seq + 1) % MAX_SEQ;
 				sendbuf[44] = '\0';
 				iSendResult = send(ClientSocket, sendbuf, strlen(sendbuf), 0);
 				if (iSendResult == SOCKET_ERROR) {
