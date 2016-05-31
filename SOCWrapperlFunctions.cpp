@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include "opcda.h"
 #include "SOCAdviseSink.h"
-#include "SimpleOPCClient_v3.h"
+#include "TP1.h"
 
 extern UINT OPC_DATA_TIME; // Defined in "SimpleOPCClient.cpp"
 
@@ -155,7 +155,6 @@ bool VarToStr (VARIANT pvar, char *buffer)
 			vReturn = false;
 			break;
 	}
-	DataChanged(pvar,buffer);
 	return(vReturn);
 }
 ///////////////////////////////////////////////////////////////////////////////

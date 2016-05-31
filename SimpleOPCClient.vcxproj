@@ -14,6 +14,7 @@
     <ProjectGuid>{6C614B07-E2D4-407A-BB8C-CA292AB68C92}</ProjectGuid>
     <RootNamespace>SimpleOPCClient</RootNamespace>
     <Keyword>Win32Proj</Keyword>
+    <ProjectName>TP1</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -84,7 +85,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="opcda_i.c" />
-    <ClCompile Include="SimpleOPCClient_v3.cpp" />
+    <ClCompile Include="TP1.cpp" />
     <ClCompile Include="SOCAdviseSink.cpp" />
     <ClCompile Include="SOCDataCallback.cpp" />
     <ClCompile Include="SOCWrapperlFunctions.cpp" />
@@ -92,7 +93,7 @@
   <ItemGroup>
     <ClInclude Include="opcda.h" />
     <ClInclude Include="opcerror.h" />
-    <ClInclude Include="SimpleOPCClient_v3.h" />
+    <ClInclude Include="TP1.h" />
     <ClInclude Include="SOCAdviseSink.h" />
     <ClInclude Include="SOCDataCallback.h" />
     <ClInclude Include="SOCWrapperFunctions.h" />

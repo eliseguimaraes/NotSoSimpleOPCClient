@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include "SOCDataCallback.h"
 #include "SOCWrapperFunctions.h"
+#include "TP1.h"
 
 extern UINT OPC_DATA_TIME;
 
@@ -127,12 +128,13 @@ HRESULT STDMETHODCALLTYPE SOCDataCallback::OnDataChange(
 		// a few OPC data types are supported.
 		status = VarToStr(pvValues[dwItem], buffer);
 		if (status){
-			printf("Data callback: Value = %s", buffer);
+			DataChanged(pvValues[dwItem], buffer);
+			printf("Mensagem lida por callback: Valor = %s", buffer);
 			quality = pwQualities [dwItem] & OPC_QUALITY_MASK;
 			if (quality == OPC_QUALITY_GOOD)
-				printf(" Quality: good");
+				printf(" Qualidade: good");
 			else
-			    printf(" Quality: not good");
+			    printf(" Qualidade: not good");
 			// Code below extracted from the Microsoft KB:
 			//     http://support.microsoft.com/kb/188768
 			// Note that in order for it to work, the Visual Studio C++ must
@@ -147,7 +149,7 @@ HRESULT STDMETHODCALLTYPE SOCDataCallback::OnDataChange(
 			GetTimeFormat(LOCALE_SYSTEM_DEFAULT, 0, &st, NULL, szLocalTime, 255);
 			printf(" Time: %s %s\n", szLocalDate, szLocalTime);
 		}
-		else printf ("IOPCDataCallback: Unsupported item type\n");
+		else printf ("IOPCDataCallback: Tipo do item não suportado\n");
 	}
 
 	// Return "success" code.  Note this does not mean that there were no 

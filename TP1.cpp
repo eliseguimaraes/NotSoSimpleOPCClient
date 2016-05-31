@@ -53,7 +53,7 @@
 #include <comutil.h>	//ConvertStringToBSTR
 #include "opcda.h"
 #include "opcerror.h"
-#include "SimpleOPCClient_v3.h"
+#include "TP1.h"
 #include "SOCAdviseSink.h"
 #include "SOCDataCallback.h"
 #include "SOCWrapperFunctions.h"
@@ -109,19 +109,19 @@ void main(void)
 
 	hThreads[0] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)OPCThread1, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId1);
 	if (hThreads[0]) {
-		printf("OPC thread created with id %0x\n", dwThreadId1);
+		printf("OPC thread criada com id %0x\n", dwThreadId1);
 	}
 	else {
-		printf("Error creating thread");
+		printf("Erro criando thread");
 		exit(0);
 	}
 
 	hThreads[1] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)SocketThread, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId2);
 	if (hThreads[1]) {
-		printf("OPC thread created with id %0x\n", dwThreadId1);
+		printf("OPC thread criada com id %0x\n", dwThreadId1);
 	}
 	else {
-		printf("Error creating thread");
+		printf("Erro criando thread");
 		exit(0);
 	}
 
@@ -159,19 +159,19 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 	char buf[100];
 
 	// Have to be done before using microsoft COM library:
-	printf("Initializing the COM environment...\n");
+	printf("Inicializando o ambiente COM...\n");
 	CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
 	// Let's instantiante the IOPCServer interface and get a pointer of it:
-	printf("Intantiating the MATRIKON OPC Server for Simulation...\n");
+	printf("Instanciando o Matrikon OPC Simulation Server...\n");
 	pIOPCServer = InstantiateServer(OPC_SERVER_NAME);
 
 	// Add the OPC groups for reading and writing the OPC server and get an handle to the IOPCItemMgt
 	//interfaces:
-	printf("Adding a reading group in the INACTIVE state for the moment...\n");
+	printf("Adicionando um grupo de leitura em estado inativo, inicialmente...\n");
 	AddTheGroup(pIOPCServer, pIOPCItemMgtRead, hServerGroupRead, readingGroupName);
 
-	printf("Adding a writing group in the INACTIVE state...\n");
+	printf("Adicionando um grupo de escrita em estado inativo...\n");
 	AddTheGroup(pIOPCServer, pIOPCItemMgtWrite, hServerGroupWrite, writingGroupName);
 
 
@@ -180,14 +180,14 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 	size_t m;
 	for (i = 0; i < 3; i++) {
 		wcstombs_s(&m, buf, 100, ITEM_READ[i], _TRUNCATE);
-		printf("Adding the item %s to the reading group...\n", buf);
+		printf("Adicionando o item %s ao grupo de leitura...\n", buf);
 	}
 
 	AddReadingItems(pIOPCItemMgtRead, hServerReadArray);
 
 	for (i = 0; i < 3; i++) {
 		wcstombs_s(&m, buf, 100, ITEM_WRITE[i], _TRUNCATE);
-		printf("Adding the item %s to the writing group...\n", buf);
+		printf("Adicionando o item %s ao grupo de escrita...\n", buf);
 	}
 	AddWritingItems(pIOPCItemMgtWrite, hServerWriteArray);
 
@@ -200,21 +200,21 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 	SOCDataCallback* pSOCDataCallback = new SOCDataCallback();
 	pSOCDataCallback->AddRef();
 
-	printf("Setting up the IConnectionPoint callback connection...\n");
+	printf("Configurando a conexão de callback IConnectionPoint...\n");
 	SetDataCallback(pIOPCItemMgtRead, pSOCDataCallback, pIConnectionPoint, &dwCookie);
 
 	// Change the reading group to the ACTIVE state so that we can receive the
 	// server´s callback notification
-	printf("Changing the reading group state to ACTIVE...\n");
+	printf("Alterando o estado do grupo de leitura para ATIVO...\n");
 	SetGroupActive(pIOPCItemMgtRead);
 
-	printf("Waiting for IOPCDataCallback notifications...\n");
+	printf("Aguardando notificações pela interface IOPCDataCallback...\n");
 	VARIANT var;
 	DWORD rt;
 	while (1) {
 		rt = WaitForSingleObject(hItemsToWrite, INFINITE);
 		if (rt != WAIT_OBJECT_0) {
-			cout << "An error ocurred while waiting a semaphore. Terminating execution...";
+			cout << "Ocorreu um erro ao aguardar um semáforo. Encerrando execução...";
 			exit(0);
 		}
 		V_VT(&var) = VT_I2;
@@ -232,31 +232,31 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 	}
 
 	// Cancel the callback and release its reference
-	printf("Cancelling the IOPCDataCallback notifications...\n");
+	printf("Cancelando as notificações de IOPCDataCallback...\n");
 	CancelDataCallback(pIConnectionPoint, dwCookie);
 	//pIConnectionPoint->Release();
 	pSOCDataCallback->Release();
 
 	// Remove the OPC items:
-	printf("Removing the OPC reading items...\n");
+	printf("Removendo os itens de leitura OPC...\n");
 	RemoveItem(pIOPCItemMgtRead, hServerReadArray);
 
-	printf("Removing the OPC writing items...\n");
+	printf("Removendo os itens de escrita OPC...\n");
 	RemoveItem(pIOPCItemMgtWrite, hServerWriteArray);
 
 	// Remove the OPC group:
-	printf("Removing the OPC group objects...\n");
+	printf("Removendo os grupos OPC...\n");
 	pIOPCItemMgtRead->Release();
 	pIOPCItemMgtWrite->Release();
 	RemoveGroup(pIOPCServer, hServerGroupRead);
 	RemoveGroup(pIOPCServer, hServerGroupWrite);
 
 	// release the interface references:
-	printf("Removing the OPC server object...\n");
+	printf("Removendo o objeto servidor...\n");
 	pIOPCServer->Release();
 
 	//close the COM library:
-	printf("Releasing the COM environment...\n");
+	printf("Liberando o ambiente COM...\n");
 	CoUninitialize();
 	_endthreadex(0);
 	return 0;
@@ -289,7 +289,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 	// Initialize Winsock
 	iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (iResult != 0) {
-		printf("WSAStartup failed: %d\n", iResult);
+		printf("WSAStartup falhou: %d\n", iResult);
 		return 1;
 	}
 	// configuração da struct addrinfo
@@ -302,33 +302,35 @@ DWORD WINAPI SocketThread(LPVOID id) {
 										// Endereço e porta do servidor
 	iResult = getaddrinfo(NULL, DEFAULT_PORT, &hints, &result);
 	if (iResult != 0) {
-		printf("getaddrinfo failed: %d\n", iResult);
+		printf("getaddrinfo falhou: %d\n", iResult);
 		WSACleanup();
 		return 1;
 	}
-
+	// Cria o socket passivo
 	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (ListenSocket == INVALID_SOCKET) {
-		printf("socket failed: %ld\n", WSAGetLastError());
+		printf("socket falhou: %ld\n", WSAGetLastError());
 		freeaddrinfo(result);
 		WSACleanup();
 		return 1;
 	}
-
+	// Linka o socket criado à porta indicada
 	iResult = bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
 	if (iResult == SOCKET_ERROR) {
-		printf("bind failed: %d\n", WSAGetLastError());
+		printf("bind falhou: %d\n", WSAGetLastError());
 		freeaddrinfo(result);
 		closesocket(ListenSocket);
 		WSACleanup();
 		return 1;
 	}
 
+	// Libera a estrutura addrinfo, que já não será necessária desse ponto adiante
 	freeaddrinfo(result);
 
+	// Fica na escuta por conexões - função bloqueante
 	iResult = listen(ListenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR) {
-		printf("listen failed: %d\n", WSAGetLastError());
+		printf("listen falhou: %d\n", WSAGetLastError());
 		closesocket(ListenSocket);
 		WSACleanup();
 		return 1;
@@ -337,7 +339,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 	// Aceita o connection socket
 	ClientSocket = accept(ListenSocket, NULL, NULL);
 	if (ClientSocket == INVALID_SOCKET) {
-		printf("accept failed: %d\n", WSAGetLastError());
+		printf("accept falhou: %d\n", WSAGetLastError());
 		closesocket(ListenSocket);
 		WSACleanup();
 		return 1;
@@ -351,9 +353,8 @@ DWORD WINAPI SocketThread(LPVOID id) {
 
 		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
 		if (iResult > 0) {
-			printf("Bytes received: %d\n", iResult);
 			recvbuf[iResult] = '\0'; // Removendo lixo de memória
-
+			printf("\nMensagem recebida: %s \n", recvbuf);
 			sscanf(recvbuf, "%d", &mCode);
 			if (mCode == 1 && iResult == 44) { //setup
 				sscanf(recvbuf + 9, "%d", &mSeq);
@@ -370,8 +371,9 @@ DWORD WINAPI SocketThread(LPVOID id) {
 				ackSeq = (ackSeq + 1)%MAX_SEQ;
 				ack[17] = '\0';
 				iSendResult = send(ClientSocket, ack, strlen(ack), 0);
+				printf("\n Mensagem enviada: %s \n", ack);
 				if (iSendResult == SOCKET_ERROR) {
-					printf("send failed: %d\n", WSAGetLastError());
+					printf("send falhou: %d\n", WSAGetLastError());
 					closesocket(ClientSocket);
 					WSACleanup();
 					return 1;
@@ -384,8 +386,9 @@ DWORD WINAPI SocketThread(LPVOID id) {
 				m2seq = (m2seq + 1) % MAX_SEQ;
 				sendbuf[44] = '\0';
 				iSendResult = send(ClientSocket, sendbuf, strlen(sendbuf), 0);
+				printf("\n Mensagem enviada: %s \n", sendbuf);
 				if (iSendResult == SOCKET_ERROR) {
-					printf("send failed: %d\n", WSAGetLastError());
+					printf("send falhou: %d\n", WSAGetLastError());
 					closesocket(ClientSocket);
 					WSACleanup();
 					return 1;
@@ -403,7 +406,7 @@ DWORD WINAPI SocketThread(LPVOID id) {
 		else if (iResult == 0)
 			printf("Conexão encerrando...\n");
 		else {
-			printf("recv failed: %d\n", WSAGetLastError());
+			printf("recv falhou: %d\n", WSAGetLastError());
 			closesocket(ClientSocket);
 			WSACleanup();
 			return 1;
@@ -450,7 +453,7 @@ void DataChanged(VARIANT pvar, char* value) {
 			s.wSecond);
 		break;
 	default:
-		cout << "An error ocurred while reading data assynchronously from the OPC Server. Aborting...";
+		cout << "Ocorreu um erro ao receber dados assincronamente do OPC Server. Abortando...";
 		exit(0);
 	}
 	ReleaseMutex(readMutex);
@@ -529,7 +532,6 @@ void AddTheGroup(IOPCServer* pIOPCServer, IOPCItemMgt* &pIOPCItemMgt,
 // Add the Item ITEM_ID to the group whose IOPCItemMgt interface
 // is pointed by pIOPCItemMgt pointer. Return a server opc handle
 // to the item.
-
 void AddWritingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem)
 {
 	HRESULT hr;
@@ -549,7 +551,7 @@ void AddWritingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem)
 	// Add an Item to the previous Group:
 	hr = pIOPCItemMgt->AddItems(3, ItemArray, &pAddResult, &pErrors);
 	if (hr != S_OK) {
-		printf("Failed call to AddItems function. Error code = %x\n", hr);
+		printf("Chama falha a AddItems. Error code = %x\n", hr);
 		exit(0);
 	}
 
@@ -588,7 +590,7 @@ void AddReadingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem)
 	// Add an Item to the previous Group:
 	hr = pIOPCItemMgt->AddItems(3, ItemArray, &pAddResult, &pErrors);
 	if (hr != S_OK) {
-		printf("Failed call to AddItems function. Error code = %x\n", hr);
+		printf("Chama falha a AddItems. Error code = %x\n", hr);
 		exit(0);
 	}
 
@@ -635,9 +637,18 @@ void RemoveGroup(IOPCServer* pIOPCServer, OPCHANDLE hServerGroup)
 	HRESULT hr = pIOPCServer->RemoveGroup(hServerGroup, FALSE);
 	if (hr != S_OK) {
 		if (hr == OPC_S_INUSE)
-			printf("Failed to remove OPC group: object still has references to it.\n");
-		else printf("Failed to remove OPC group. Error code = %x\n", hr);
+			printf("Falha ao remover grupo OPC. Ainda há alguma referência a ele.\n");
+		else printf("Falha ao remover grupo OPC. Error code = %x\n", hr);
 		exit(0);
+	}
+}
+
+void wait(int time) {
+	DWORD ticks1, ticks2;
+	ticks1 = GetTickCount();
+	ticks2 = GetTickCount();
+	while ((ticks2 - ticks1) < time) {
+		ticks2 = GetTickCount();
 	}
 }
 
@@ -648,6 +659,7 @@ void RemoveGroup(IOPCServer* pIOPCServer, OPCHANDLE hServerGroup)
 //
 void WriteItem(IUnknown* pGroupIUnknown, OPCHANDLE hServerItem, VARIANT *varValue)
 {
+
 	//get a pointer to the IOPCSyncIOInterface:
 	IOPCSyncIO* pIOPCSyncIO;
 	pGroupIUnknown->QueryInterface(__uuidof(pIOPCSyncIO), (void**)&pIOPCSyncIO);
@@ -656,6 +668,17 @@ void WriteItem(IUnknown* pGroupIUnknown, OPCHANDLE hServerItem, VARIANT *varValu
 	HRESULT* pErrors = NULL; //to store error code(s)
 	HRESULT hr = pIOPCSyncIO->Write(1, &hServerItem, varValue, &pErrors);
 	_ASSERT(!hr);
+
+	char buffer[100];
+	bool status;
+	OPCITEMSTATE* pValue = NULL;
+	//wait(10000);
+	hr = pIOPCSyncIO->Read(OPC_DS_DEVICE, 1, &hServerItem, &pValue, &pErrors);
+	_ASSERT(!hr);
+	status = VarToStr(pValue[0].vDataValue, buffer);
+	if (status) {
+		printf("Item escrito: valor = %s", buffer);
+	}
 	//Release memeory allocated by the OPC server:
 	CoTaskMemFree(pErrors);
 	pErrors = NULL;

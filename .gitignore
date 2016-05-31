@@ -54,3 +54,4 @@ _UpgradeReport_Files/
 *.opendb
 /enc_temp_folder
 *.db
+*.opensdf
