@@ -136,7 +136,7 @@ bool VarToStr (VARIANT pvar, char *buffer)
 		case VT_R8:
 			sprintf(buffer, "%lu",   pvar.dblVal);	break;
 		case VT_BSTR:
-			sprintf(buffer, "%s",    pvar.bstrVal);	break;
+			sprintf(buffer, "%S",    pvar.bstrVal);	break;
 		case VT_DATE:
 			SYSTEMTIME s;
 			VariantTimeToSystemTime(pvar.date, &s); 

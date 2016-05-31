@@ -669,15 +669,14 @@ void WriteItem(IUnknown* pGroupIUnknown, OPCHANDLE hServerItem, VARIANT *varValu
 	HRESULT hr = pIOPCSyncIO->Write(1, &hServerItem, varValue, &pErrors);
 	_ASSERT(!hr);
 
-	char buffer[100];
-	bool status;
-	OPCITEMSTATE* pValue = NULL;
-	//wait(10000);
-	hr = pIOPCSyncIO->Read(OPC_DS_DEVICE, 1, &hServerItem, &pValue, &pErrors);
-	_ASSERT(!hr);
-	status = VarToStr(pValue[0].vDataValue, buffer);
-	if (status) {
-		printf("Item escrito: valor = %s", buffer);
+	if (varValue->vt == 2) {
+		printf("\nItem escrito: valor = %d\n", varValue->iVal);
+	}
+	else if (varValue->vt == 3) {
+		printf("\nItem escrito: valor = %d\n", varValue->iVal);
+	}
+	else if (varValue->vt == 8) {
+		printf("\nItem escrito: valor = %S\n", varValue->bstrVal);
 	}
 	//Release memeory allocated by the OPC server:
 	CoTaskMemFree(pErrors);
