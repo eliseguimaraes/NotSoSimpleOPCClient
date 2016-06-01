@@ -57,6 +57,7 @@
 #include "SOCAdviseSink.h"
 #include "SOCDataCallback.h"
 #include "SOCWrapperFunctions.h"
+#include "resource.h" // Interface
 
 #pragma comment(lib, "comsuppw.lib")
 #pragma comment(lib, "kernel32.lib")
@@ -92,20 +93,79 @@ struct writeStruct writeData;
 struct readStruct readData;
 
 HANDLE hItemsToWrite;	// Binary Semaphore to indicate new items to be written to the OPC Server
-
+HANDLE interfaceReady;
+HANDLE endEverything;
 HANDLE thread2;			// Handle 
 DWORD dwThreadId;
 
 HANDLE readMutex;
 
+HWND hInterface;
+
+BOOL CALLBACK DlgProc(HWND hwnd, UINT Message, WPARAM wParam, LPARAM lParam)
+{
+	switch (Message)
+	{
+	case WM_INITDIALOG:
+
+		hInterface = hwnd;
+		SetDlgItemText(hwnd, IDC_INPUT1, "n/d");
+		SetDlgItemText(hwnd, IDC_INPUT2, "n/d");
+		SetDlgItemText(hwnd, IDC_INPUT3, "n/d");
+		SetDlgItemText(hwnd, IDC_INPUT4, "n/d");
+		SetDlgItemText(hwnd, IDC_INPUT5, "n/d");
+		SetDlgItemText(hwnd, IDC_INPUT6, "n/d");
+		SetEvent(interfaceReady);
+		break;
+
+	case WM_CLOSE:
+		EndDialog(hwnd, 0);
+		SetEvent(endEverything);
+		break;
+	default:
+		return FALSE;
+	}
+	return TRUE;
+}
+
+/////////////////////////////////////////////////////////////////////
+// Thread responsible for initializing the dialog box
+
+DWORD WINAPI GuiThread(LPVOID hInst)
+{
+	HINSTANCE hInstance = (HINSTANCE)hInst;
+	DialogBox(hInstance, MAKEINTRESOURCE(IDD_MAIN), NULL, DlgProc);
+
+	_endthreadex((DWORD)0);
+	return 0;
+}
 
 //////////////////////////////////////////////////////////////////////
 // Main method. Initializes all the threads and synchronization items.
 //
-void main(void)
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+	LPSTR lpCmdLine, int nCmdShow)
 {
-	HANDLE hThreads[2]; // Handles for the threads
-	DWORD dwThreadId1, dwThreadId2;
+	HANDLE hThreads[3]; // Handles for the threads
+	DWORD dwThreadId1, dwThreadId2, dwThreadId3;
+	interfaceReady = CreateEvent(NULL, TRUE, FALSE, "InterfaceEvent");
+	endEverything = CreateEvent(NULL, TRUE, FALSE, "EndEvent");
+	// Cria thread para o Servidor Socket
+	hThreads[2] = (HANDLE)_beginthreadex(
+		NULL,
+		0,
+		(CAST_FUNCTION)GuiThread,
+		(LPVOID)hInstance,
+		0,
+		(CAST_LPDWORD)&dwThreadId3
+	);
+	if (hThreads[2]) {
+		printf("Thread de manutenção da interface criada com id = %0x \n", dwThreadId3);
+	}
+
+
+	WaitForSingleObject(interfaceReady, INFINITE);
 
 	hThreads[0] = (HANDLE)_beginthreadex(NULL, 0, (CAST_FUNCTION)OPCThread1, (LPVOID)0, 0, (CAST_LPDWORD)&dwThreadId1);
 	if (hThreads[0]) {
@@ -129,12 +189,21 @@ void main(void)
 
 	readMutex = CreateMutex(NULL, FALSE, "ReadMutex");
 
-	WaitForMultipleObjects(2, hThreads, true, INFINITE);
+	WaitForSingleObject(endEverything, INFINITE);
+
+	DWORD dwExitCode1 = 0, dwExitCode2 = 0, dwExitCode3 = 0;
+	// Waits threads closure
+	GetExitCodeThread(hThreads[0], &dwExitCode1);
+	GetExitCodeThread(hThreads[1], &dwExitCode2);
+	GetExitCodeThread(hThreads[2], &dwExitCode3);
+
 
 	// Close all kernel objects' handles
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 3; i++) {
 		CloseHandle(hThreads[i]);
 	}
+	CloseHandle(endEverything);
+	CloseHandle(interfaceReady);
 	CloseHandle(readMutex);
 	CloseHandle(hItemsToWrite);
 }
@@ -210,8 +279,8 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 
 	printf("Aguardando notificações pela interface IOPCDataCallback...\n");
 	VARIANT var;
-	DWORD rt;
-	while (1) {
+	DWORD rt, dwRet;
+	do {
 		rt = WaitForSingleObject(hItemsToWrite, INFINITE);
 		if (rt != WAIT_OBJECT_0) {
 			cout << "Ocorreu um erro ao aguardar um semáforo. Encerrando execução...";
@@ -228,8 +297,8 @@ DWORD WINAPI OPCThread1(LPVOID id) {
 		V_BSTR(&var) = bstrText;
 		SysFreeString(bstrText);
 		WriteItem(pIOPCItemMgtWrite, hServerWriteArray[2], &var);
-
-	}
+		dwRet = WaitForSingleObject(endEverything, 0);
+	} while (dwRet != WAIT_OBJECT_0);
 
 	// Cancel the callback and release its reference
 	printf("Cancelando as notificações de IOPCDataCallback...\n");
@@ -347,13 +416,16 @@ DWORD WINAPI SocketThread(LPVOID id) {
 
 	// Socket passivo já não é necessário, já que connection socket foi obtido
 	closesocket(ListenSocket);
-
+	char listBuffer[256];
+	DWORD dwRet;
 	// Recebe até que o cliente encerre a conexão
 	do {
 
 		iResult = recv(ClientSocket, recvbuf, recvbuflen, 0);
 		if (iResult > 0) {
 			recvbuf[iResult] = '\0'; // Removendo lixo de memória
+			sprintf(listBuffer, "RECEBIDA : %s", recvbuf);
+			SendDlgItemMessage(hInterface, IDC_LIST, LB_ADDSTRING, 0, (LPARAM)listBuffer);
 			printf("\nMensagem recebida: %s \n", recvbuf);
 			sscanf(recvbuf, "%d", &mCode);
 			if (mCode == 1 && iResult == 44) { //setup
@@ -362,16 +434,20 @@ DWORD WINAPI SocketThread(LPVOID id) {
 				sscanf(recvbuf + 3 * 9, "%d", &mTon);
 				sscanf(recvbuf + 4 * 9, "%s", &mHour);
 				mHour[8] = '\0';
-				writeData.cim = mType;
-				strcpy(writeData.time, mHour);
-				writeData.ton = mTon;
-				ReleaseSemaphore(hItemsToWrite, 1, &lOldValue);
+				if (mType < 10 && mType > 1 && mTon > 1 && mTon < 100) { //valida os itens
+					writeData.cim = mType;
+					strcpy(writeData.time, mHour);
+					writeData.ton = mTon;
+					ReleaseSemaphore(hItemsToWrite, 1, &lOldValue);
+				}
 				//send ack
 				sprintf(ack, "%.08d|%.08d", 2, ackSeq);
-				ackSeq = (ackSeq + 1)%MAX_SEQ;
+				ackSeq = (ackSeq + 1) % MAX_SEQ;
 				ack[17] = '\0';
 				iSendResult = send(ClientSocket, ack, strlen(ack), 0);
 				printf("\n Mensagem enviada: %s \n", ack);
+				sprintf(listBuffer, "ENVIADA : %s", ack);
+				SendDlgItemMessage(hInterface, IDC_LIST, LB_ADDSTRING, 0, (LPARAM)listBuffer);
 				if (iSendResult == SOCKET_ERROR) {
 					printf("send falhou: %d\n", WSAGetLastError());
 					closesocket(ClientSocket);
@@ -387,6 +463,8 @@ DWORD WINAPI SocketThread(LPVOID id) {
 				sendbuf[44] = '\0';
 				iSendResult = send(ClientSocket, sendbuf, strlen(sendbuf), 0);
 				printf("\n Mensagem enviada: %s \n", sendbuf);
+				sprintf(listBuffer, "ENVIADA : %s", sendbuf);
+				SendDlgItemMessage(hInterface, IDC_LIST, LB_ADDSTRING, 0, (LPARAM)listBuffer);
 				if (iSendResult == SOCKET_ERROR) {
 					printf("send falhou: %d\n", WSAGetLastError());
 					closesocket(ClientSocket);
@@ -411,8 +489,8 @@ DWORD WINAPI SocketThread(LPVOID id) {
 			WSACleanup();
 			return 1;
 		}
-
-	} while (iResult > 0);
+		//dwRet = WaitForSingleObject(endEverything, 0);
+	} while ((iResult > 0) && (WaitForSingleObject(endEverything, 0) != WAIT_OBJECT_0));
 
 	// encerra a conexão
 	iResult = shutdown(ClientSocket, SD_SEND);
@@ -435,26 +513,33 @@ DWORD WINAPI SocketThread(LPVOID id) {
 // read assynchronously from the OPC Server.
 //
 void DataChanged(VARIANT pvar, char* value) {
+	char inputBuffer[256];
 	WaitForSingleObject(readMutex, INFINITE);
 	switch (pvar.vt) {
-	case VT_I2:
-		readData.prod = pvar.intVal;
-		break;
-	case VT_R4:
-		readData.oee = pvar.fltVal;
-		break;
-	case VT_DATE:
-		SYSTEMTIME s;
-		VariantTimeToSystemTime(pvar.date, &s);
-		sprintf(readData.time,
-			"%02d:%02d:%02d",
-			s.wHour,
-			s.wMinute,
-			s.wSecond);
-		break;
-	default:
-		cout << "Ocorreu um erro ao receber dados assincronamente do OPC Server. Abortando...";
-		exit(0);
+		case VT_I2:
+			readData.prod = pvar.intVal;
+			sprintf(inputBuffer, "%d", readData.prod);
+			SetDlgItemText(hInterface, IDC_INPUT1, inputBuffer);
+			break;
+		case VT_R4:
+			readData.oee = pvar.fltVal;
+			sprintf(inputBuffer, "%f", readData.oee);
+			SetDlgItemText(hInterface, IDC_INPUT2, inputBuffer);
+			break;
+		case VT_DATE:
+			SYSTEMTIME s;
+			VariantTimeToSystemTime(pvar.date, &s);
+			sprintf(readData.time,
+				"%02d:%02d:%02d",
+				s.wHour,
+				s.wMinute,
+				s.wSecond);
+			sprintf(inputBuffer, "%s", readData.time);
+			SetDlgItemText(hInterface, IDC_INPUT3, inputBuffer);
+			break;
+		default:
+			cout << "Ocorreu um erro ao receber dados assincronamente do OPC Server. Abortando...";
+			exit(0);
 	}
 	ReleaseMutex(readMutex);
 }
@@ -668,15 +753,21 @@ void WriteItem(IUnknown* pGroupIUnknown, OPCHANDLE hServerItem, VARIANT *varValu
 	HRESULT* pErrors = NULL; //to store error code(s)
 	HRESULT hr = pIOPCSyncIO->Write(1, &hServerItem, varValue, &pErrors);
 	_ASSERT(!hr);
-
+	char inputBuffer[256];
 	if (varValue->vt == 2) {
 		printf("\nItem escrito: valor = %d\n", varValue->iVal);
+		sprintf(inputBuffer, "%d", varValue->iVal);
+		SetDlgItemText(hInterface, IDC_INPUT4, inputBuffer);
 	}
 	else if (varValue->vt == 3) {
 		printf("\nItem escrito: valor = %d\n", varValue->iVal);
+		sprintf(inputBuffer, "%d", varValue->iVal);
+		SetDlgItemText(hInterface, IDC_INPUT5, inputBuffer);
 	}
 	else if (varValue->vt == 8) {
 		printf("\nItem escrito: valor = %S\n", varValue->bstrVal);
+		sprintf(inputBuffer, "%S", varValue->bstrVal);
+		SetDlgItemText(hInterface, IDC_INPUT6, inputBuffer);
 	}
 	//Release memeory allocated by the OPC server:
 	CoTaskMemFree(pErrors);
