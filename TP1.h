@@ -46,8 +46,10 @@ void AddReadingItems(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerItem);
 void RemoveItem(IOPCItemMgt* pIOPCItemMgt, OPCHANDLE *hServerArray);
 void RemoveGroup(IOPCServer* pIOPCServer, OPCHANDLE hServerGroup);
 void WriteItem(IUnknown * pGroupIUnknown, OPCHANDLE hServerItem, VARIANT * varValue);
-void main(void);
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+	LPSTR lpCmdLine, int nCmdShow);
 DWORD WINAPI OPCThread1(LPVOID id);
 DWORD WINAPI SocketThread(LPVOID id);
+DWORD WINAPI GuiThread(LPVOID hInst);
 void DataChanged(VARIANT pValue, char* value);
 #endif // SIMPLE_OPC_CLIENT_H not defined

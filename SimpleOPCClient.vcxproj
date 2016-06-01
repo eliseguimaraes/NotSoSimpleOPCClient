@@ -59,7 +59,7 @@
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Console</SubSystem>
+      <SubSystem>Windows</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
   </ItemDefinitionGroup>
@@ -93,10 +93,14 @@
   <ItemGroup>
     <ClInclude Include="opcda.h" />
     <ClInclude Include="opcerror.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="TP1.h" />
     <ClInclude Include="SOCAdviseSink.h" />
     <ClInclude Include="SOCDataCallback.h" />
     <ClInclude Include="SOCWrapperFunctions.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="TP1.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
